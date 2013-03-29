@@ -79,15 +79,23 @@ int main(int argc, char **argv)
       
       if (!strcmp(limeReaderType(reader), "ildg-binary-data"))
       {
+        if (!siteSize)
+          continue;
         n_uint64_t bytes = limeReaderBytes(reader);
-        char *message = (char*)malloc(siteSize);
+        n_uint64_t chunkSize = 16 * 1024 * 1024; // 16 megabytes as a maximum read
+        n_uint64_t chunkElems = chunkSize % siteSize;
+        chunkSize = chunkElems * siteSize;
+        
+        n_uint64_t readUnit = (bytes + chunkSize - 1) / chunkSize;
+        char *message = (char*)malloc(chunkSize);
         
         DML_checksum_init(&calculated);
         
-        for (unsigned int rank = 0; rank < volume; ++rank)
+        for (n_uint64_t rank = 0; rank < volume; ++rank)
         {
-          limeReaderReadData(message, &siteSize, reader);
-          DML_checksum_accum(&calculated, rank, message, siteSize);
+          if ((rank % chunkElems) == 0)
+            limeReaderReadData(message, &readUnit, reader);
+          DML_checksum_accum(&calculated, rank, message + (rank % chunkElems) * siteSize, siteSize);
         }
 
         free(message);
