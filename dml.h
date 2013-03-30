@@ -22,31 +22,13 @@
 #define _DML_H
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
-typedef unsigned int   uint32_t;
-
-typedef struct {
-  uint32_t suma;
-  uint32_t sumb;
-} DML_Checksum;
-
-typedef uint32_t DML_SiteRank;
-
-void DML_checksum_init(DML_Checksum *checksum) ;
-int DML_global_xor(uint32_t *x) ;
-
-void DML_checksum_accum(DML_Checksum *checksum, DML_SiteRank rank,
-                        char *buf, size_t size) ;
-
-void DML_checksum_combine(DML_Checksum *checksum) ;
-
-
-void DML_checksum_peq(DML_Checksum *total, DML_Checksum *checksum) ;
-
+int DML_global_xor(uint32_t *x);
+void DML_checksum_accum(uint32_t *suma, uint32_t *sumb, uint32_t rank, char *buf, size_t size) ;
 uint32_t DML_crc32(uint32_t crc, const unsigned char *buf, size_t len);
-
-int parse_checksum_xml(char *message, DML_Checksum *checksum);
+int parse_checksum_xml(char *message, uint32_t *suma, uint32_t *sumb);
 
 #endif

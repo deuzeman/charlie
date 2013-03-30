@@ -91,13 +91,6 @@ uint32_t DML_crc32(uint32_t crc, const unsigned char *buf, size_t len)
     return crc ^ 0xffffffffL;
 }
 
-/* Initialize checksums */
-void DML_checksum_init(DML_Checksum *checksum){
-  checksum->suma = 0;
-  checksum->sumb = 0;
-}
-
-
 #ifdef MPI
 int DML_global_xor(uint32_t *x) {
   unsigned long work = (unsigned long)*x;
@@ -118,50 +111,38 @@ int DML_global_xor(uint32_t *x){return(0);}
 
 
 /* Accumulate checksums */
-void DML_checksum_accum(DML_Checksum *checksum, DML_SiteRank rank,
+void DML_checksum_accum(uint32_t *suma, uint32_t *sumb, uint32_t const rank,
                         char *buf, size_t size){
 
-  DML_SiteRank rank29 = rank;
-  DML_SiteRank rank31 = rank;
+  uint32_t rank29 = rank % 29;
+  uint32_t rank31 = rank % 31;
   uint32_t work = DML_crc32(0, (unsigned char*)buf, size);
 
-  rank29 %= 29; rank31 %= 31;
-
-  checksum->suma ^= work<<rank29 | work>>(32-rank29);
-  checksum->sumb ^= work<<rank31 | work>>(32-rank31);
+  *suma ^= work<<rank29 | work>>(32-rank29);
+  *sumb ^= work<<rank31 | work>>(32-rank31);
 }
 
 /* Combine checksums over all nodes */
-void DML_checksum_combine(DML_Checksum *checksum){
-  DML_global_xor(&checksum->suma);
-  DML_global_xor(&checksum->sumb);
+void DML_checksum_combine(uint32_t *suma, uint32_t *sumb){
+  DML_global_xor(suma);
+//   DML_global_xor(sumb);
 }
 
-/* Add single checksum set to the total */
-void DML_checksum_peq(DML_Checksum *total, DML_Checksum *checksum){
-  total->suma ^= checksum->suma;
-  total->sumb ^= checksum->sumb;
-}
-
-int parse_checksum_xml(char *message, DML_Checksum *checksum)
+int parse_checksum_xml(char *message, uint32_t *suma, uint32_t *sumb)
 {
   int  read_suma = 0, read_sumb = 0;
   char *pos = strtok(message, "<> \n\t");
-
-  if (checksum == (DML_Checksum*)NULL) {
-    return 0;
-  }
 
   while (pos)
   {
     if (!strncmp(pos, "suma", 4)) {
       pos = strtok(0, "<> \n\t");
-      sscanf(pos, "%x", &checksum->suma);
+      sscanf(pos, "%x", suma);
       read_suma = 1;
     }
     if (!strncmp(pos, "sumb", 4)) {
       pos = strtok(0, "<> \n\t");
-      sscanf(pos, "%x", &checksum->sumb);
+      sscanf(pos, "%x", sumb);
       read_sumb = 1;
     }
     pos = strtok(0, "<> \n\t");

@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <omp.h>
+
 #include <lime.h>
 
 #include "dml.h"

@@ -51,11 +51,13 @@ int main(int argc, char **argv)
     fp = fopen(argv[file_ctr], "r");
     reader = limeCreateReader(fp);
 
-    DML_Checksum calculated;
-    DML_Checksum read;
+    uint32_t suma_calc = 0;
+    uint32_t sumb_calc = 0;
+    uint32_t suma_read = 0;
+    uint32_t sumb_read = 0;
     
-    n_uint64_t siteSize = 0;
-    n_uint64_t volume = 0;
+    uint64_t siteSize = 0;
+    uint64_t volume = 0;
 
     printf("Checking file %s.\n", argv[file_ctr]);
     
@@ -82,21 +84,13 @@ int main(int argc, char **argv)
         if (!siteSize)
           continue;
         n_uint64_t bytes = limeReaderBytes(reader);
-        n_uint64_t chunkSize = 16 * 1024 * 1024; // 16 megabytes as a maximum read
-        n_uint64_t chunkElems = chunkSize % siteSize;
-        chunkSize = chunkElems * siteSize;
         
-        n_uint64_t readUnit = (bytes + chunkSize - 1) / chunkSize;
-        char *message = (char*)malloc(chunkSize);
-        
-        DML_checksum_init(&calculated);
-        
-        for (n_uint64_t rank = 0; rank < volume; ++rank)
-        {
-          if ((rank % chunkElems) == 0)
-            limeReaderReadData(message, &readUnit, reader);
-          DML_checksum_accum(&calculated, rank, message + (rank % chunkElems) * siteSize, siteSize);
-        }
+        char *message = (char*)malloc(bytes);
+        limeReaderReadData(message, &bytes, reader);
+
+#pragma omp parallel for reduction(^:suma_calc, sumb_calc)
+        for (uint64_t rank = 0; rank < volume; ++rank)
+          DML_checksum_accum(&suma_calc, &sumb_calc, rank, message + rank * siteSize, siteSize);
 
         free(message);
         continue;
@@ -109,7 +103,7 @@ int main(int argc, char **argv)
         limeReaderReadData(message, &bytes, reader);
         message[bytes] = '\0';
         
-        parse_checksum_xml(message, &read);
+        parse_checksum_xml(message, &suma_read, &sumb_read);
         
         free(message);
         continue;
@@ -119,9 +113,9 @@ int main(int argc, char **argv)
     limeDestroyReader(reader);
     fclose(fp);
     
-    printf("  Checksum read:       %08x %08x\n", read.suma, read.sumb);
-    printf("  Checksum calculated: %08x %08x\n", calculated.suma, calculated.sumb);
-    if ((read.suma == calculated.suma) && (read.sumb == calculated.sumb))
+    printf("  Checksum read:       %08x %08x\n", suma_read, sumb_read);
+    printf("  Checksum calculated: %08x %08x\n", suma_calc, sumb_calc);
+    if ((suma_calc == suma_read) && (sumb_calc == sumb_read))
       printf("  File integrity confirmed.\n");
     else
       printf("  WARNING! File corruption detected!\n");
